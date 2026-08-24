@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Payroll Calculator</title>
+
+  <style>
+    :root{
+      color-scheme: light dark;
+      --bg:#f3f4f6;
+      --card:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:#d1d5db;
+      --accent:#2563eb;
+      --accent-soft:#dbeafe;
+      --result:#eff6ff;
+      --result-border:#bfdbfe;
+
+      --row:58px;
+      --visible-rows:5.8;
+      --selected-top:2.4;
+    }
+
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#0b1020;
+        --card:#151b2b;
+        --text:#f9fafb;
+        --muted:#9ca3af;
+        --border:#374151;
+        --accent:#60a5fa;
+        --accent-soft:#172554;
+        --result:#172554;
+        --result-border:#1e40af;
+      }
+    }
+
+    *{box-sizing:border-box}
+
+    html,body{
+      margin:0;
+      min-height:100%;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    body{overflow-x:hidden}
+
+    .app{
+      width:min(100%,660px);
+      margin:0 auto;
+      padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+    }
+
+    .dual-card{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .wheel-card{
+      min-width:0;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:10px;
+    }
+
+    .wheel-heading{
+      text-align:center;
+      margin-bottom:7px;
+    }
+
+    .wheel-heading strong{
+      display:block;
+      font-size:1.12rem;
+    }
+
+    .selected-time{
+      display:block;
+      margin-top:2px;
+      font-size:1.12rem;
+      font-weight:900;
+      color:var(--accent);
+      font-variant-numeric:tabular-nums;
+    }
+
+    .ampm{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:6px;
+      margin-bottom:8px;
+      padding:4px;
+      border:1px solid var(--border);
+      border-radius:13px;
+      background:color-mix(in srgb, var(--card) 92%, var(--bg));
+    }
+
+    .ampm button{
+      min-height:48px;
+      border:0;
+      border-radius:10px;
+      background:transparent;
+      color:var(--muted);
+      font:inherit;
+      font-size:1.02rem;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .ampm button.active{
+      background:var(--accent);
+      color:#fff;
+    }
+
+    .wheel-shell{
+      position:relative;
+      height:calc(var(--row) * var(--visible-rows));
+      overflow:hidden;
+      border-radius:14px;
+    }
+
+    .wheel-shell::before{
+      content:"";
+      position:absolute;
+      left:2px;
+      right:2px;
+      top:calc(var(--row) * var(--selected-top));
+      height:var(--row);
+      z-index:2;
+      pointer-events:none;
+      border-top:2px solid var(--accent);
+      border-bottom:2px solid var(--accent);
+      background:color-mix(in srgb, var(--accent-soft) 58%, transparent);
+      border-radius:9px;
+    }
+
+    .wheel-shell::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index:3;
+      pointer-events:none;
+      background:
+        linear-gradient(
+          to bottom,
+          color-mix(in srgb, var(--card) 97%, transparent) 0%,
+          color-mix(in srgb, var(--card) 72%, transparent) 16%,
+          transparent 34%,
+          transparent 66%,
+          color-mix(in srgb, var(--card) 72%, transparent) 84%,
+          color-mix(in srgb, var(--card) 97%, transparent) 100%
+        );
+    }
+
+    .wheel{
+      position:relative;
+      z-index:1;
+      height:100%;
+      overflow-y:auto;
+      overscroll-behavior:contain;
+      scroll-snap-type:y proximity;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:none;
+      touch-action:pan-y;
+      padding-block:calc(var(--row) * var(--selected-top));
+    }
+
+    .wheel::-webkit-scrollbar{display:none}
+
+    .time-row{
+      height:var(--row);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      scroll-snap-align:center;
+      color:var(--muted);
+      font-size:1.22rem;
+      font-weight:700;
+      font-variant-numeric:tabular-nums;
+      user-select:none;
+      -webkit-user-select:none;
+      white-space:nowrap;
+    }
+
+    .time-row.selected{
+      color:var(--text);
+      font-size:1.48rem;
+      font-weight:950;
+    }
+
+    .result-card{
+      margin-top:14px;
+      padding:12px 14px 13px;
+      border:1px solid var(--result-border);
+      border-radius:18px;
+      background:var(--result);
+      text-align:center;
+    }
+
+    .total{
+      font-size:clamp(3.25rem,16vw,4.6rem);
+      line-height:.95;
+      font-weight:950;
+      font-variant-numeric:tabular-nums;
+    }
+
+    .detail{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:1rem;
+      font-weight:650;
+    }
+
+    .reset{
+      width:100%;
+      min-height:48px;
+      margin-top:10px;
+      border:1px solid var(--border);
+      border-radius:13px;
+      background:var(--card);
+      color:var(--text);
+      font:inherit;
+      font-size:.98rem;
+      font-weight:800;
+      cursor:pointer;
+    }
+
+    .reset:active{transform:translateY(1px)}
+
+    @media (max-width:360px){
+      :root{
+        --row:54px;
+        --visible-rows:5.6;
+        --selected-top:2.3;
+      }
+      .wheel-card{padding:8px}
+      .time-row{font-size:1.1rem}
+      .time-row.selected{font-size:1.34rem}
+      .selected-time{font-size:1rem}
+      .ampm button{font-size:.94rem}
+      .result-card{padding:10px 12px 12px}
+      .detail{font-size:.95rem}
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section class="dual-card">
+      <div class="wheel-card">
+        <div class="wheel-heading">
+          <strong>Time In</strong>
+          <span class="selected-time" id="inDisplay">8:00 AM</span>
+        </div>
+
+        <div class="ampm" aria-label="Time In AM or PM">
+          <button type="button" id="inAM" class="active">AM</button>
+          <button type="button" id="inPM">PM</button>
+        </div>
+
+        <div class="wheel-shell">
+          <div class="wheel" id="inWheel" aria-label="Time In"></div>
+        </div>
+      </div>
+
+      <div class="wheel-card">
+        <div class="wheel-heading">
+          <strong>Time Out</strong>
+          <span class="selected-time" id="outDisplay">4:00 PM</span>
+        </div>
+
+        <div class="ampm" aria-label="Time Out AM or PM">
+          <button type="button" id="outAM">AM</button>
+          <button type="button" id="outPM" class="active">PM</button>
+        </div>
+
+        <div class="wheel-shell">
+          <div class="wheel" id="outWheel" aria-label="Time Out"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="result-card" aria-live="polite">
+      <div class="total" id="totalHours">8.00</div>
+      <div class="detail" id="totalDetail">8 hours 0 minutes</div>
+    </section>
+
+    <button class="reset" id="resetBtn" type="button">Reset to 8:00 AM – 4:00 PM</button>
+  </main>
+
+  <script>
+    (() => {
+      const STEP = 15;
+      const COUNT = 48;
+
+      const inWheel = document.getElementById('inWheel');
+      const outWheel = document.getElementById('outWheel');
+      const inDisplay = document.getElementById('inDisplay');
+      const outDisplay = document.getElementById('outDisplay');
+      const inAM = document.getElementById('inAM');
+      const inPM = document.getElementById('inPM');
+      const outAM = document.getElementById('outAM');
+      const outPM = document.getElementById('outPM');
+      const totalHours = document.getElementById('totalHours');
+      const totalDetail = document.getElementById('totalDetail');
+      const resetBtn = document.getElementById('resetBtn');
+
+      let inIndex = 32;
+      let outIndex = 16;
+      let inPeriod = 'AM';
+      let outPeriod = 'PM';
+
+      function indexToClock(index){
+        const totalMinutes = index * STEP;
+        const hourRaw = Math.floor(totalMinutes / 60);
+        const minute = totalMinutes % 60;
+        const hour = hourRaw === 0 ? 12 : hourRaw;
+        return {
+          hour,
+          minute,
+          text: `${hour}:${String(minute).padStart(2,'0')}`
+        };
+      }
+
+      function buildWheel(wheel){
+        const frag = document.createDocumentFragment();
+        for(let i = 0; i < COUNT; i++){
+          const row = document.createElement('div');
+          row.className = 'time-row';
+          row.dataset.index = String(i);
+          row.textContent = indexToClock(i).text;
+          frag.appendChild(row);
+        }
+        wheel.appendChild(frag);
+      }
+
+      buildWheel(inWheel);
+      buildWheel(outWheel);
+
+      function rowHeight(){
+        return parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--row')
+        ) || 58;
+      }
+
+      function nearestIndex(wheel){
+        return Math.max(
+          0,
+          Math.min(COUNT - 1, Math.round(wheel.scrollTop / rowHeight()))
+        );
+      }
+
+      function setVisual(wheel,index){
+        const old = wheel.querySelector('.time-row.selected');
+        if(old) old.classList.remove('selected');
+
+        const row = wheel.querySelector(`.time-row[data-index="${index}"]`);
+        if(row) row.classList.add('selected');
+      }
+
+      function setPeriodButtons(){
+        inAM.classList.toggle('active', inPeriod === 'AM');
+        inPM.classList.toggle('active', inPeriod === 'PM');
+        outAM.classList.toggle('active', outPeriod === 'AM');
+        outPM.classList.toggle('active', outPeriod === 'PM');
+      }
+
+      function toMinutes(index, period){
+        const clock = indexToClock(index);
+        let hour24 = clock.hour % 12;
+        if(period === 'PM') hour24 += 12;
+        return hour24 * 60 + clock.minute;
+      }
+
+      function calculate(){
+        let start = toMinutes(inIndex, inPeriod);
+        let end = toMinutes(outIndex, outPeriod);
+
+        if(end < start) end += 24 * 60;
+
+        const diff = end - start;
+        const hours = Math.floor(diff / 60);
+        const mins = diff % 60;
+
+        inDisplay.textContent = `${indexToClock(inIndex).text} ${inPeriod}`;
+        outDisplay.textContent = `${indexToClock(outIndex).text} ${outPeriod}`;
+
+        totalHours.textContent = (diff / 60).toFixed(2);
+        totalDetail.textContent =
+          `${hours} hour${hours === 1 ? '' : 's'} ${mins} minute${mins === 1 ? '' : 's'}`;
+
+        setVisual(inWheel,inIndex);
+        setVisual(outWheel,outIndex);
+        setPeriodButtons();
+      }
+
+      function scrollToIndex(wheel,index,behavior='auto'){
+        wheel.scrollTo({
+          top:index * rowHeight(),
+          behavior
+        });
+      }
+
+      function attachWheel(wheel,type){
+        let settleTimer = null;
+        let lastTop = 0;
+        let lastTime = performance.now();
+
+        wheel.addEventListener('scroll',() => {
+          const now = performance.now();
+          const currentTop = wheel.scrollTop;
+          const dt = Math.max(1, now - lastTime);
+          const velocity = Math.abs(currentTop - lastTop) / dt;
+
+          lastTop = currentTop;
+          lastTime = now;
+
+          const idx = nearestIndex(wheel);
+
+          if(type === 'in'){
+            if(idx !== inIndex){
+              inIndex = idx;
+              calculate();
+            }
+          }else{
+            if(idx !== outIndex){
+              outIndex = idx;
+              calculate();
+            }
+          }
+
+          clearTimeout(settleTimer);
+
+          if(velocity < 0.12){
+            settleTimer = setTimeout(() => {
+              const snapIndex = nearestIndex(wheel);
+              const target = snapIndex * rowHeight();
+              const distance = Math.abs(wheel.scrollTop - target);
+
+              if(distance > 2 && distance < rowHeight() * 0.42){
+                wheel.scrollTo({top:target, behavior:'auto'});
+              }
+            },180);
+          }
+        },{passive:true});
+
+        wheel.addEventListener('click',(event) => {
+          const row = event.target.closest('.time-row');
+          if(!row) return;
+          scrollToIndex(wheel,Number(row.dataset.index),'auto');
+        });
+      }
+
+      attachWheel(inWheel,'in');
+      attachWheel(outWheel,'out');
+
+      inAM.addEventListener('click',() => { inPeriod='AM'; calculate(); });
+      inPM.addEventListener('click',() => { inPeriod='PM'; calculate(); });
+      outAM.addEventListener('click',() => { outPeriod='AM'; calculate(); });
+      outPM.addEventListener('click',() => { outPeriod='PM'; calculate(); });
+
+      resetBtn.addEventListener('click',() => {
+        inIndex = 32;
+        outIndex = 16;
+        inPeriod = 'AM';
+        outPeriod = 'PM';
+        scrollToIndex(inWheel,inIndex);
+        scrollToIndex(outWheel,outIndex);
+        calculate();
+      });
+
+      function initialize(){
+        scrollToIndex(inWheel,inIndex);
+        scrollToIndex(outWheel,outIndex);
+        calculate();
+      }
+
+      requestAnimationFrame(() => {
+        initialize();
+        setTimeout(initialize,60);
+      });
+
+      window.addEventListener('resize',() => {
+        scrollToIndex(inWheel,inIndex);
+        scrollToIndex(outWheel,outIndex);
+      });
+    })();
+  </script>
+</body>
+</html>
